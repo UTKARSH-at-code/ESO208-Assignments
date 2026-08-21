@@ -1,0 +1,58 @@
+"""
+Assignment 2, Q.1- a,b
+Bisection method: temperature at which saturation DO in freshwater = 10 mg/L
+"""
+import math
+
+
+def f(T, Os_target=10.0):
+    """Residual function: ln(Osf(T)) - ln(Os_target).  Root => Osf = target."""
+    Ta = T + 273.15
+    lnOs = (-139.34411
+            + 1.575701e5 / Ta
+            - 6.642308e7 / Ta**2
+            + 1.243800e10 / Ta**3
+            - 8.621949e11 / Ta**4)
+    return lnOs - math.log(Os_target)
+
+
+def bisection(func, xl, xu, tol=1e-8, maxit=100):
+    """Bisection method. Returns root, iterations, table of iterations."""
+    fl, fu = func(xl), func(xu)
+    if fl * fu > 0:
+        raise ValueError("No sign change in [xl, xu] - bracket the root first.")
+
+    table, xr_old = [], None
+    for i in range(1, maxit + 1):
+        xr = 0.5 * (xl + xu)          # midpoint
+        fr = func(xr)
+        ea = abs((xr - xr_old) / xr) * 100 if xr_old is not None else None
+        table.append((i, xl, xu, xr, fr, ea))
+
+        if fl * fr < 0:               # root lies in left half
+            xu, fu = xr, fr
+        elif fl * fr > 0:             # root lies in right half
+            xl, fl = xr, fr
+        else:
+            return xr, i, table       # exact root
+
+        if ea is not None and ea < tol:
+            return xr, i, table
+        xr_old = xr
+    return xr, maxit, table
+
+
+if __name__ == "__main__":
+    xl, xu = 0.0, 40.0                # valid range of the correlation
+    root, nit, table = bisection(f, xl, xu, tol=1e-8)
+
+    print(" it        xl         xu         xr          f(xr)        ea(%)")
+    for i, a, b, c, fc, ea in table:
+        e = "     ---" if ea is None else f"{ea:9.5f}"
+        print(f"{i:3d} {a:10.6f} {b:10.6f} {c:10.6f} {fc:12.3e} {e}")
+
+    Ta = root + 273.15
+    Os = math.exp(-139.34411 + 1.575701e5/Ta - 6.642308e7/Ta**2
+                  + 1.243800e10/Ta**3 - 8.621949e11/Ta**4)
+    print(f"\nRoot: T = {root:.6f} deg C  in {nit} iterations")
+    print(f"Check: Osf({root:.4f}) = {Os:.6f} mg/L")
