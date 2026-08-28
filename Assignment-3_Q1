@@ -1,1 +1,96 @@
+import numpy as np
+import matplotlib.pyplot as plt
 
+def f(x):
+    return np.exp((x - 1.0)**2) - 1.0
+
+def df(x):
+    return 2.0 * (x - 1.0) * np.exp((x - 1.0)**2)
+
+def d2f(x):
+    return (2.0 + 4.0 * (x - 1.0)**2) * np.exp((x - 1.0)**2)
+
+def u(x):
+    s = x - 1.0
+    return (1.0 - np.exp(-s * s)) / (2.0 * s)
+
+def du(x):
+    s = x - 1.0
+    e = np.exp(-s * s)
+    return 1.0 - (1.0 - e) * (2.0 + 4.0 * s * s) * e / (4.0 * s * s)
+
+def secant(g, xm1, x0, tol=1e-6, maxit=200, m=1.0):
+    xo, xn = float(xm1), float(x0)
+    go, gn = g(xo), g(xn)
+    rows = []
+    for i in range(1, maxit + 1):
+        den = go - gn
+        if den == 0.0:
+            break
+        xnext = xn - m * gn * (xo - xn) / den
+        ea = abs((xnext - xn) / xnext) * 100.0 if xnext != 0.0 else np.inf
+        rows.append((i, xo, xn, gn, xnext, ea))
+        xo, go = xn, gn
+        xn, gn = xnext, g(xnext)
+        if ea < tol or gn == 0.0:
+            break
+    return xn, rows
+
+def print_table(rows, title, gname):
+    print("\n" + title)
+    head = f"{'i':>4}{'x(i-1)':>16}{'x(i)':>16}{gname:>16}{'x(i+1)':>16}{'|ea| %':>14}"
+    print("-" * len(head)); print(head); print("-" * len(head))
+    for r in rows:
+        print(f"{r[0]:>4}{r[1]:>16.9f}{r[2]:>16.9f}{r[3]:>16.6e}{r[4]:>16.9f}{r[5]:>14.4e}")
+    print("-" * len(head))
+    print(f"root = {rows[-1][4]:.10f}    iterations = {len(rows)}")
+
+def make_plots():
+    x = np.linspace(0.0, 2.0, 2001)
+    fig, ax = plt.subplots(1, 2, figsize=(11, 4.2))
+    ax[0].plot(x, f(x), label=r"$f(x)$")
+    ax[0].plot(x, df(x), label=r"$f'(x)$")
+    ax[0].plot(x, d2f(x), label=r"$f''(x)$")
+    ax[0].axhline(0, color='k', lw=.8); ax[0].axvline(1, color='gray', ls='--', lw=.8)
+    ax[0].set_title("f, f', f'' on [0,2]"); ax[0].set_xlabel("x")
+    ax[0].legend(); ax[0].grid(alpha=.3)
+
+    xz = np.linspace(0.7, 1.3, 2001)
+    ax[1].plot(xz, f(xz), label=r"$f(x)$")
+    ax[1].plot(xz, df(xz), label=r"$f'(x)$")
+    ax[1].plot(xz, d2f(xz), label=r"$f''(x)$")
+    ax[1].axhline(0, color='k', lw=.8); ax[1].axvline(1, color='gray', ls='--', lw=.8)
+    ax[1].plot(1, 0, 'ko', ms=5)
+    ax[1].set_title("zoom near x = 1"); ax[1].set_xlabel("x")
+    ax[1].legend(); ax[1].grid(alpha=.3)
+    fig.tight_layout(); fig.savefig("fig_Q1a.png", dpi=160); plt.close(fig)
+
+    xm = np.linspace(0.0, 2.0, 4001); xm = xm[np.abs(xm - 1) > 1e-7]
+    fig, ax = plt.subplots(figsize=(7, 4.2))
+    ax.plot(xm, u(xm), label=r"$u(x)=f(x)/f'(x)$")
+    ax.plot(xm, du(xm), label=r"$u'(x)$")
+    ax.axhline(0, color='k', lw=.8); ax.axvline(1, color='gray', ls='--', lw=.8)
+    ax.plot(1, 0, 'ko', ms=5); ax.set_ylim(-1.0, 1.0)
+    ax.set_title("u(x) and u'(x)"); ax.set_xlabel("x")
+    ax.legend(); ax.grid(alpha=.3)
+    fig.tight_layout(); fig.savefig("fig_Q1b.png", dpi=160); plt.close(fig)
+
+if __name__ == "__main__":
+    make_plots()
+    XM1, X0, TOL = -0.5, 0.0, 1e-6
+
+    r1, t1 = secant(f, XM1, X0, tol=TOL)
+    print_table(t1, "SECANT METHOD on f(x)", "f(x_i)")
+
+    r2, t2 = secant(f, XM1, X0, tol=TOL, m=2.0)
+    print_table(t2, "MODIFIED SECANT (m = 2)", "f(x_i)")
+
+    r3, t3 = secant(u, XM1, X0, tol=TOL, maxit=8)
+    print_table(t3, "SECANT ON u = f/f' from same guesses (diverges)", "u(x_i)")
+
+    r4, t4 = secant(u, 0.5, 0.8, tol=TOL)
+    print_table(t4, "SECANT ON u = f/f' from x(-1)=0.5, x(0)=0.8", "u(x_i)")
+
+    print(f"\nSecant on f          : {r1:.10f}, {len(t1)} iterations")
+    print(f"Modified secant m=2  : {r2:.10f}, {len(t2)} iterations")
+    print(f"Secant on u          : {r4:.10f}, {len(t4)} iterations")
