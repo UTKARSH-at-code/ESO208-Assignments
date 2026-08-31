@@ -1,0 +1,54 @@
+import numpy as np
+
+def lu_decompose(A):
+    n = len(A)
+    U = A.astype(float).copy()
+    L = np.eye(n)
+    for k in range(n - 1):
+        for i in range(k + 1, n):
+            L[i][k] = U[i][k] / U[k][k]
+            U[i][k:] = U[i][k:] - L[i][k] * U[k][k:]
+    return L, U
+
+def forward_sub(L, b):
+    n = len(b)
+    y = np.zeros(n)
+    for i in range(n):
+        y[i] = b[i] - np.dot(L[i][:i], y[:i])
+    return y
+
+def back_sub(U, y):
+    n = len(y)
+    x = np.zeros(n)
+    for i in range(n - 1, -1, -1):
+        x[i] = (y[i] - np.dot(U[i][i+1:], x[i+1:])) / U[i][i]
+    return x
+
+def lu_solve(L, U, b):
+    return back_sub(U, forward_sub(L, b))
+
+def inverse(L, U):
+    n = len(L)
+    Ainv = np.zeros((n, n))
+    for i in range(n):
+        e = np.zeros(n)
+        e[i] = 1.0
+        Ainv[:, i] = lu_solve(L, U, e)
+    return Ainv
+
+def row_sum_norm(M):
+    return max(sum(abs(v) for v in row) for row in M)
+
+A = np.array([[7, 2, -3], [2, 5, -3], [1, -1, -6]], dtype=float)
+B = np.array([12, 18, -6], dtype=float)
+
+L, U = lu_decompose(A)
+X = lu_solve(L, U, B)
+Ainv = inverse(L, U)
+cond = row_sum_norm(A) * row_sum_norm(Ainv)
+
+print("L =\n", L)
+print("U =\n", U)
+print("X =", X)
+print("A_inv =\n", Ainv)
+print("cond(A) =", cond)
