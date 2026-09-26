@@ -1,0 +1,104 @@
+import numpy as np
+import matplotlib.pyplot as plt
+
+T = np.array([0, 8, 16, 24, 32, 40], dtype=float)
+O = np.array([14.621, 11.843, 9.870, 8.418, 7.305, 6.413])
+
+
+def newton_coeffs(x, y):
+    n = len(x)
+    F = np.zeros((n, n))
+    F[:, 0] = y
+    for j in range(1, n):
+        for i in range(n - j):
+            F[i, j] = (F[i + 1, j - 1] - F[i, j - 1]) / (x[i + j] - x[i])
+    return F[0, :].copy(), F
+
+
+def newton_eval(b, x, t):
+    p = np.full_like(t, b[-1], dtype=float)
+    for k in range(len(b) - 2, -1, -1):
+        p = p * (t - x[k]) + b[k]
+    return p
+
+
+def spline_system(x, y):
+    n = len(x) - 1
+    A = np.zeros((3 * n, 3 * n))
+    r = np.zeros(3 * n)
+    row = 0
+    for i in range(n):
+        for xi, yi in ((x[i], y[i]), (x[i + 1], y[i + 1])):
+            A[row, 3 * i:3 * i + 3] = [xi ** 2, xi, 1]
+            r[row] = yi
+            row += 1
+    for i in range(1, n):
+        A[row, 3 * (i - 1):3 * (i - 1) + 2] = [2 * x[i], 1]
+        A[row, 3 * i:3 * i + 2] = [-2 * x[i], -1]
+        row += 1
+    A[row, 0] = 1
+    return A, r
+
+
+def gauss_elimination(A, b):
+    A = A.astype(float).copy()
+    b = b.astype(float).copy()
+    n = len(b)
+    for k in range(n - 1):
+        p = k + np.argmax(np.abs(A[k:, k]))
+        if p != k:
+            A[[k, p]] = A[[p, k]]
+            b[[k, p]] = b[[p, k]]
+        for i in range(k + 1, n):
+            f = A[i, k] / A[k, k]
+            A[i, k:] -= f * A[k, k:]
+            b[i] -= f * b[k]
+    x = np.zeros(n)
+    for i in range(n - 1, -1, -1):
+        x[i] = (b[i] - A[i, i + 1:] @ x[i + 1:]) / A[i, i]
+    return x
+
+
+def spline_eval(coef, x, t):
+    idx = np.clip(np.searchsorted(x, t, side="right") - 1, 0, len(x) - 2)
+    a, b, c = coef[3 * idx], coef[3 * idx + 1], coef[3 * idx + 2]
+    return a * t ** 2 + b * t + c
+
+
+np.set_printoptions(precision=6, suppress=True, linewidth=150)
+
+b, F = newton_coeffs(T, O)
+print("(a) Divided difference table:")
+for row in F:
+    print("  ".join(f"{v: .6e}" for v in row))
+print("\nNewton coefficients b0..b5:")
+for k, bk in enumerate(b):
+    print(f"b{k} = {bk:.10e}")
+
+A, r = spline_system(T, O)
+print("\n(b) Spline system [A | r]  (unknowns a1 b1 c1 ... a5 b5 c5):")
+np.set_printoptions(precision=3, suppress=True, linewidth=200)
+print(np.column_stack((A, r)))
+
+coef = gauss_elimination(A, r)
+coef[np.abs(coef) < 1e-12] = 0.0
+print("\n(c) Quadratic spline coefficients:")
+for i in range(len(T) - 1):
+    a_, b_, c_ = coef[3 * i:3 * i + 3]
+    print(f"f{i + 1}(T) = {a_:+.6f} T^2 {b_:+.6f} T {c_:+.6f},   {T[i]:.0f} <= T <= {T[i + 1]:.0f}")
+print("Check with np.linalg.solve:", np.allclose(coef, np.linalg.solve(A, r)))
+
+t = np.linspace(0, 40, 801)
+plt.figure(figsize=(9, 5.5))
+plt.plot(t, newton_eval(b, T, t), "b-", lw=2, label="5th order Newton polynomial")
+plt.plot(t, spline_eval(coef, T, t), "r--", lw=2, label="Quadratic spline")
+plt.plot(T, O, "ko", ms=7, label="Data points")
+plt.xlabel("Temperature T (°C)")
+plt.ylabel("Dissolved oxygen O (mg/L)")
+plt.title("Dissolved Oxygen vs Temperature")
+plt.xlim(0, 40)
+plt.grid(True, alpha=0.4)
+plt.legend()
+plt.tight_layout()
+plt.savefig("q1_plot.png", dpi=150)
+plt.show()
