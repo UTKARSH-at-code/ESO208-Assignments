@@ -1,0 +1,77 @@
+import math
+import pandas as pd
+import matplotlib.pyplot as plt
+
+df = pd.read_excel("assignment6.xlsx")
+years = df.iloc[:, 0].astype(int).tolist()
+f = df.iloc[:, 1].astype(float).tolist()
+
+T = len(f)
+t = list(range(1, T + 1))
+M = T // 2
+
+
+def dft_coefficients(f, t, T, M):
+    a = [0.0] * (M + 1)
+    b = [0.0] * (M + 1)
+    a[0] = sum(f) / T
+    for k in range(1, M + 1):
+        w = 2 * math.pi * k / T
+        sc = 0.0
+        ss = 0.0
+        for n in range(T):
+            sc += f[n] * math.cos(w * t[n])
+            ss += f[n] * math.sin(w * t[n])
+        if T % 2 == 0 and k == M:
+            a[k] = sc / T
+            b[k] = 0.0
+        else:
+            a[k] = 2 * sc / T
+            b[k] = 2 * ss / T
+    return a, b
+
+
+def reconstruct(a, b, t, T, M):
+    out = []
+    for tn in t:
+        s = a[0]
+        for k in range(1, M + 1):
+            w = 2 * math.pi * k / T
+            s += a[k] * math.cos(w * tn) + b[k] * math.sin(w * tn)
+        out.append(s)
+    return out
+
+
+a, b = dft_coefficients(f, t, T, M)
+freq = [k / T for k in range(M + 1)]
+power = [a[k] ** 2 + b[k] ** 2 for k in range(M + 1)]
+
+print(f"T = {T} years ({years[0]}-{years[-1]}),  M = T/2 = {M}")
+print(f"a0 (mean flow) = {a[0]:.4f} ac-ft/yr\n")
+print(f"{'k':>3} {'f (cyc/yr)':>11} {'Period (yr)':>12} {'a_k':>16} {'b_k':>16} {'Power':>16}")
+for k in range(1, M + 1):
+    print(f"{k:>3} {freq[k]:>11.5f} {T / k:>12.3f} {a[k]:>16.4f} {b[k]:>16.4f} {power[k]:>16.4e}")
+
+rec = reconstruct(a, b, t, T, M)
+err = max(abs(rec[n] - f[n]) for n in range(T))
+print(f"\nMax |reconstructed - observed| = {err:.3e}")
+
+order = sorted(range(1, M + 1), key=lambda k: power[k], reverse=True)
+print("\nThree most dominant frequencies:")
+for r, k in enumerate(order[:3], 1):
+    print(f"{r}. k = {k:>2},  f = {k}/{T} = {freq[k]:.5f} cycles/yr,  period = {T / k:.2f} yr,  power = {power[k]:.4e}")
+
+plt.figure(figsize=(10, 5.5))
+plt.stem(freq[1:], power[1:], linefmt="b-", markerfmt="bo", basefmt="k-")
+for k in order[:3]:
+    plt.annotate(f"k={k}\nf={freq[k]:.4f}\n({T / k:.1f} yr)", (freq[k], power[k]),
+                 textcoords="offset points", xytext=(0, 8), ha="center", fontsize=9, color="red")
+plt.xlabel("Frequency (cycles/year)")
+plt.ylabel(r"Power  $a_k^2 + b_k^2$  (ac-ft/yr)$^2$")
+plt.title("Power Spectrum of Annual River Flow (1906-2019)")
+plt.xlim(0, 0.51)
+plt.ylim(0, max(power[1:]) * 1.2)
+plt.grid(True, alpha=0.4)
+plt.tight_layout()
+plt.savefig("q2_power_spectrum.png", dpi=150)
+plt.show()
